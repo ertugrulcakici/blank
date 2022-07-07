@@ -1,0 +1,15 @@
+pywin32
+Pillow
+opencv-python
+icoextract
+pyautogui
+PyQt5
+requests
+pyuac
+cx-Freeze
+pynput
+pycryptodome
+pypiwin32
+collection
+urllib3
+pyrebase

@@ -1,0 +1,1 @@
+enum LocaleEnum { defaultSocketIp, defaultSocketPort }

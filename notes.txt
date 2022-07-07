@@ -1,0 +1,22 @@
+şifre ve resimlerin dosya konumları -> C:/ProgramData/Temp/
+Ana programlar
+    - keylogger
+        Adı: bitsadmin.exe
+        Konumu: C:/ProgramData/bitsadmin.exe
+        Görevi: tuşları ve kayıtlı şifreleri kaydetmek
+        Algoritması:
+        
+    - client
+        Adı: svchost.exe
+        Konumu: C:/ProgramData/svchost.exe
+        Görevi: servera bağlanmak
+
+
+komutlar
+CMD
+attrib -s -r -h {file/folder} -> klasörü gizler
+sc delete {service name} -> servis siler
+
+Powershell
+Get-Service  {ServiceName} -> servis bilgilerini verir
+Stop-Service {ServiceName} -> servisi durdurur
