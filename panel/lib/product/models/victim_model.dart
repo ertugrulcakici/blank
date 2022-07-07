@@ -6,8 +6,17 @@ import 'dart:typed_data';
 class VictimModel {
   Socket soket;
   String? name;
+  Function notifyListeners;
+  bool _active = true;
+  bool get active => _active;
+  set active(bool value) {
+    _active = value;
+    _subscription?.cancel();
+    _subscription = null;
+    notifyListeners();
+  }
 
-  VictimModel(this.soket, Function notifyListeners) {
+  VictimModel(this.soket, this.notifyListeners) {
     _subscription = soket.listen((data) {});
 
     // data
@@ -23,21 +32,26 @@ class VictimModel {
 
     // error
     _subscription!.onError((error) {
-      log("$ip:$endpoint:$error");
-      try {
-        _subscription!.cancel();
-      } catch (e) {
-        log("Stream kapatma hatası: $e");
-      }
-      _subscription = null;
+      log("$ip:$endpoint error:$error");
+      active = false;
     });
 
     // done
     _subscription!.onDone(() {
       log("$ip:$endpoint:done");
-      _subscription!.cancel();
-      _subscription = null;
+      active = false;
     });
+  }
+
+  Future send(String data) async {
+    if (active) {
+      try {
+        soket.write(data);
+      } catch (e) {
+        log("Gönderme hatası: $e");
+        active = false;
+      }
+    }
   }
 
   String get ip => soket.remoteAddress.address;

