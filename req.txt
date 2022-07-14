@@ -1,9 +1,9 @@
+firebase_admin
 pywin32
-Pillow
 opencv-python
 icoextract
 pyautogui
-PyQt5
+PyQt6
 requests
 pyuac
 cx-Freeze
@@ -13,3 +13,6 @@ pypiwin32
 collection
 urllib3
 pyrebase
+pynput
+opencv-python
+pillow

