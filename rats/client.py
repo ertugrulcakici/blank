@@ -9,7 +9,7 @@ from ctypes import cdll
 from socket import socket
 from threading import Thread
 from time import sleep
-from win32api import GetLogicalDriveStrings
+
 import cv2
 from firebase_admin import credentials
 from firebase_admin import db as realtime
@@ -37,6 +37,7 @@ def connect(ip,port,client_type):
     except Exception as e:
         print("Bağlantı hatası :",e)
         return None
+
 class Terminal(Thread):
     def __init__(self):
         super().__init__()
@@ -144,38 +145,44 @@ class WatchScreen:
             Thread(target=self.flow).start()
 
 
-class FileManager(Thread):
+class FileManager:
     def __init__(self,ip,port) -> None:
         self.ip = ip
         self.port = port
+        self.is_alive = True
 
     def start(self):
         try:
             self.soket = connect(self.ip,self.port,"file_manager")
+            Thread(target=self.command_listener).start()
         except Exception as e:
-            print("Watch screen başlanamadı",e)
+            print("File manager başlanamadı",e)
 
     def command_listener(self):
-        while True:
+        while self.is_alive:
             try:
-                data = self.soket.recv(1024)
-                if data:
-                    data = data.decode()
-                    data = json.loads(data)
-                    self.commander(data)
+                self.commander(pickle.loads(self.soket.recv(1024)))
             except Exception as e:
                 print("File manager command listener error: ",e)
-                try:
-                    self.soket.close()
-                except:
-                    pass
+                self.stop()
     
     def commander(self,data: dict):
         command = data["command"]
+        print("command datası: ",data)
+        if command == "disks":
+            disks = [x for x in GetLogicalDriveStrings().split("\x00")[:-1]]
+            data = pickle.dumps(disks)
+            data_length = str(len(data)).zfill(10).encode()
+            self.soket.sendall(data_length)
+            self.soket.sendall(data)
         
 
     def stop(self):
-        pass
+        self.is_alive = False
+        try:
+            self.soket.close()
+        except:
+            pass
 
 
 

