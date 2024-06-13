@@ -1,4 +1,3 @@
-import imp
 from time import sleep
 
 from firebase_admin import credentials

